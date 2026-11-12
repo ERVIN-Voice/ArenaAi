@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#04050c" />
+<title>NEON VOID — неоновый аркадный шутер</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2304050c'/%3E%3Cpath d='M32 10 52 50 32 40 12 50z' fill='none' stroke='%235ef1ff' stroke-width='3'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="hud-left">
+      <div class="stat">
+        <div class="stat-head"><span>ЦЕЛОСТНОСТЬ</span><b id="hpText">100</b></div>
+        <div class="bar"><i id="hpFill" class="fill-hp"></i></div>
+      </div>
+      <div class="stat">
+        <div class="stat-head"><span>ЭНЕРГИЯ <em class="key">SHIFT</em></span><b id="energyText">100%</b></div>
+        <div class="bar"><i id="energyFill" class="fill-energy"></i></div>
+      </div>
+      <div class="stat" id="odStat">
+        <div class="stat-head"><span>ОВЕРДРАЙВ <em class="key">Q</em></span><b id="odText">0%</b></div>
+        <div class="bar bar-od"><i id="odFill" class="fill-od"></i></div>
+      </div>
+    </div>
+
+    <div class="hud-right">
+      <div class="score" id="score">0</div>
+      <div class="hud-sub">
+        <span id="waveLabel">ВОЛНА 0</span>
+        <span class="dot">·</span>
+        <span id="lvlLabel">УР. 1</span>
+      </div>
+      <div class="xp-bar"><i id="xpFill"></i></div>
+      <div class="mini-btns">
+        <button id="muteBtn" class="mini" title="Звук (M)" aria-label="Звук">♪</button>
+        <button id="pauseBtn" class="mini" title="Пауза (ESC)" aria-label="Пауза">❚❚</button>
+      </div>
+    </div>
+
+    <div class="combo" id="combo"><span id="comboVal">x1.0</span><small>КОМБО</small></div>
+
+    <div class="boss-bar" id="bossWrap">
+      <div class="boss-title">ЯДРО ПУСТОТЫ <span id="bossPhase">ФАЗА I</span></div>
+      <div class="bar bar-boss"><i id="bossFill" class="fill-boss"></i></div>
+    </div>
+
+    <div class="hints" id="hints">
+      <span><b>WASD</b> движение</span>
+      <span><b>МЫШЬ</b> прицел</span>
+      <span><b>SHIFT</b> замедление</span>
+      <span><b>ПРОБЕЛ</b> рывок</span>
+      <span><b>Q</b> овердрайв</span>
+      <span><b>ESC</b> пауза</span>
+    </div>
+  </div>
+
+  <div id="banner">
+    <div class="banner-title"></div>
+    <div class="banner-sub"></div>
+  </div>
+
+  <div id="upgrades" class="upgrades">
+    <div class="up-head">
+      <div class="up-kicker">СИСТЕМА РАЗВИТИЯ</div>
+      <h2 class="up-title">ВЫБЕРИ УЛУЧШЕНИЕ</h2>
+      <div class="up-sub">Уровень повышен — щёлкни карту или нажми 1 / 2 / 3</div>
+    </div>
+    <div class="cards" id="cards"></div>
+  </div>
+
+  <div id="overlay" class="overlay"></div>
+
+  <div class="fx-overlay scanlines"></div>
+  <div class="fx-overlay vignette"></div>
+  <div class="fx-overlay flash" id="flash"></div>
+
+  <div id="touchPad">
+    <button class="tbtn" data-code="Space">РЫВОК</button>
+    <button class="tbtn" data-code="KeyQ">Q</button>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

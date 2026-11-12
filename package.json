@@ -1,0 +1,18 @@
+{
+  "name": "neon-void",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "NEON VOID — неоновый аркадный twin-stick шутер на чистом Canvas 2D",
+  "scripts": {
+    "start": "python3 -m http.server 8080 --bind 0.0.0.0",
+    "test": "node tests/smoke.mjs",
+    "test:ui": "node tests/ui.mjs",
+    "balance": "node tests/balance.mjs",
+    "shots": "node tests/render-shots.mjs"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "^1.1.1",
+    "jsdom": "^31.0.0"
+  }
+}
