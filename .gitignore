@@ -2,6 +2,7 @@ node_modules/
 dist/
 build/
 release/
+release-desktop/
 npm-debug.log*
 .DS_Store
 *.log

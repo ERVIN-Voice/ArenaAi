@@ -37,7 +37,7 @@ npm run build
 npm start
 ```
 
-Сборка Windows `.exe` (на машине с доступом к интернету):
+Сборка Windows `.exe` сервера (на машине с доступом к интернету):
 
 ```bash
 npm install
@@ -45,6 +45,20 @@ npm run build:exe
 ```
 
 Готовый exe появится в `release/arena-shooter-server.exe`. В папке `release/` также есть `start-server.bat` для запуска через установленный Node.js.
+
+### Desktop-приложение (Electron)
+
+```bash
+npm install
+npm run build:desktop
+```
+
+Создаст установщик в `release-desktop/` (Windows NSIS, x64). В режиме разработки:
+
+```bash
+npm install
+npm run app:dev
+```
 
 ## Структура
 
