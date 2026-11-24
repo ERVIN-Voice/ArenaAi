@@ -89,8 +89,8 @@ export class GameClient {
     document.addEventListener('mousemove', (e) => {
       if (!this.pointerLocked || !this.running) return;
       const sens = 0.0022;
-      this.local.yaw -= e.movementX * sens;
-      this.local.pitch -= e.movementY * sens;
+      this.local.yaw += e.movementX * sens;
+      this.local.pitch += e.movementY * sens;
       this.local.pitch = Math.max(-1.1, Math.min(1.1, this.local.pitch));
     });
 
@@ -368,8 +368,8 @@ export class GameClient {
           pitch: this.local.pitch,
           dead: this.local.dead,
         });
-        // hide own body? in third-person we see it; that's fine
-        ent.model.group.visible = true;
+        // first-person: hide own body model
+        ent.model.group.visible = false;
       } else {
         // interpolate toward target
         const t = ent.target;
@@ -444,30 +444,16 @@ export class GameClient {
     this.local.z = resolved.z;
   }
 
-  _updateCamera(dt) {
-    // third-person camera behind player
+  _updateCamera() {
+    // first-person camera
     const yaw = this.local.yaw;
     const pitch = this.local.pitch;
-    const behindDist = 5.0;
-    const up = 2.6;
-    const lookUp = 1.4;
+    const eyeY = this.local.dead ? 0.45 : PLAYER.eyeHeight;
+    this.camera.position.set(this.local.x, eyeY, this.local.z);
 
-    const cosP = Math.cos(pitch * 0.3);
-    const sinP = Math.sin(pitch * 0.3);
-    const backX = -Math.sin(yaw) * behindDist * cosP;
-    const backZ = -Math.cos(yaw) * behindDist * cosP;
-    const backY = up + sinP * 2.0;
-
-    const targetCamPos = this.tmpVec.set(
-      this.local.x + backX,
-      this.local.y + backY,
-      this.local.z + backZ
-    );
-    this.camera.position.lerp(targetCamPos, 1 - Math.pow(0.001, dt));
-
-    const lookX = this.local.x + Math.sin(yaw) * 8 * Math.cos(pitch);
-    const lookY = this.local.y + lookUp - Math.sin(pitch) * 8;
-    const lookZ = this.local.z + Math.cos(yaw) * 8 * Math.cos(pitch);
+    const lookX = this.local.x + Math.sin(yaw) * Math.cos(pitch);
+    const lookY = eyeY - Math.sin(pitch);
+    const lookZ = this.local.z + Math.cos(yaw) * Math.cos(pitch);
     this.camera.lookAt(lookX, lookY, lookZ);
   }
 }

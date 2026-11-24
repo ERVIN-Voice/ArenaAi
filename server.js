@@ -4,6 +4,7 @@ import { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { exec } from 'child_process';
 import { GameServer } from './src/server/gameServer.js';
 import { MSG, TICK_MS } from './src/shared/constants.js';
 
@@ -123,9 +124,19 @@ async function setupClient() {
   app.use(vite.middlewares);
 }
 
+function openBrowser(url) {
+  if (process.env.NO_OPEN) return;
+  const cmd = process.platform === 'win32' ? `start "" "${url}"`
+    : process.platform === 'darwin' ? `open "${url}"`
+    : `xdg-open "${url}"`;
+  exec(cmd, () => {});
+}
+
 setupClient().then(() => {
   httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`Arena Shooter 3D running on http://0.0.0.0:${PORT}`);
+    const url = `http://localhost:${PORT}`;
+    console.log(`Arena Shooter 3D running on ${url}`);
+    openBrowser(url);
   });
 }).catch((err) => {
   console.error('Failed to start server:', err);
