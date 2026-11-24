@@ -1,0 +1,21 @@
+appId: com.arena.shooter3d
+productName: Arena Shooter 3D
+directories:
+  output: release-desktop
+files:
+  - electron/**/*
+  - package.json
+extraResources:
+  - from: build/server.cjs
+    to: app-server/server.cjs
+  - from: dist
+    to: app-server/dist
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: "Arena-Shooter-3D-Setup-${version}.${ext}"
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
