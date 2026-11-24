@@ -1,90 +1,89 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<meta name="theme-color" content="#04050c" />
-<title>NEON VOID — неоновый аркадный шутер</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2304050c'/%3E%3Cpath d='M32 10 52 50 32 40 12 50z' fill='none' stroke='%235ef1ff' stroke-width='3'/%3E%3C/svg%3E" />
-<link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Arena Shooter 3D</title>
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-<div id="app">
   <canvas id="game"></canvas>
 
-  <div id="hud">
-    <div class="hud-left">
-      <div class="stat">
-        <div class="stat-head"><span>ЦЕЛОСТНОСТЬ</span><b id="hpText">100</b></div>
-        <div class="bar"><i id="hpFill" class="fill-hp"></i></div>
+  <div id="ui">
+    <!-- Main menu -->
+    <div id="menu" class="panel menu-panel">
+      <div class="menu-brand">
+        <div class="menu-kicker">3D MULTIPLAYER</div>
+        <h1>ARENA<br><span>SHOOTER</span></h1>
+        <p class="menu-sub">Шутер от третьего лица с ботами и мультиплеером. Зайди, прицелься, выживи.</p>
       </div>
-      <div class="stat">
-        <div class="stat-head"><span>ЭНЕРГИЯ <em class="key">SHIFT</em></span><b id="energyText">100%</b></div>
-        <div class="bar"><i id="energyFill" class="fill-energy"></i></div>
-      </div>
-      <div class="stat" id="odStat">
-        <div class="stat-head"><span>ОВЕРДРАЙВ <em class="key">Q</em></span><b id="odText">0%</b></div>
-        <div class="bar bar-od"><i id="odFill" class="fill-od"></i></div>
-      </div>
-    </div>
-
-    <div class="hud-right">
-      <div class="score" id="score">0</div>
-      <div class="hud-sub">
-        <span id="waveLabel">ВОЛНА 0</span>
-        <span class="dot">·</span>
-        <span id="lvlLabel">УР. 1</span>
-      </div>
-      <div class="xp-bar"><i id="xpFill"></i></div>
-      <div class="mini-btns">
-        <button id="muteBtn" class="mini" title="Звук (M)" aria-label="Звук">♪</button>
-        <button id="pauseBtn" class="mini" title="Пауза (ESC)" aria-label="Пауза">❚❚</button>
+      <div class="menu-form">
+        <label class="field">
+          <span>Позывной</span>
+          <input id="playerName" type="text" maxlength="16" placeholder="Player" autocomplete="off" />
+        </label>
+        <button id="playBtn" class="btn-primary">Играть</button>
+        <div class="menu-controls">
+          <div><kbd>WASD</kbd> движение</div>
+          <div><kbd>Мышь</kbd> прицел</div>
+          <div><kbd>ЛКМ</kbd> огонь</div>
+          <div><kbd>R</kbd> перезарядка</div>
+          <div><kbd>Shift</kbd> бег</div>
+          <div><kbd>Tab</kbd> счёт</div>
+        </div>
       </div>
     </div>
 
-    <div class="combo" id="combo"><span id="comboVal">x1.0</span><small>КОМБО</small></div>
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-left">
+          <div class="hp-block">
+            <div class="hp-bar-bg"><div id="hpFill" class="hp-bar-fill"></div></div>
+            <div id="hpText" class="hp-text">100 HP</div>
+          </div>
+          <div id="scoreText" class="score-text">Счёт: 0 | Убийств: 0 | Смертей: 0</div>
+        </div>
+        <div class="hud-right">
+          <div id="playersCount" class="hud-meta">0 игроков</div>
+          <div id="pingText" class="hud-meta">0 ms</div>
+        </div>
+      </div>
 
-    <div class="boss-bar" id="bossWrap">
-      <div class="boss-title">ЯДРО ПУСТОТЫ <span id="bossPhase">ФАЗА I</span></div>
-      <div class="bar bar-boss"><i id="bossFill" class="fill-boss"></i></div>
+      <div class="hud-bottom">
+        <div class="ammo-block">
+          <div id="ammoText" class="ammo-text">30 / 30</div>
+          <div id="reloadBar" class="reload-bar hidden"><div id="reloadFill" class="reload-fill"></div></div>
+        </div>
+      </div>
+
+      <div id="killFeed" class="kill-feed"></div>
+
+      <div id="scoreboard" class="scoreboard hidden">
+        <div class="scoreboard-title">Таблица игроков</div>
+        <table>
+          <thead><tr><th></th><th>Игрок</th><th>Счёт</th><th>K</th><th>D</th></tr></thead>
+          <tbody id="scoreboardBody"></tbody>
+        </table>
+      </div>
     </div>
 
-    <div class="hints" id="hints">
-      <span><b>WASD</b> движение</span>
-      <span><b>МЫШЬ</b> прицел</span>
-      <span><b>SHIFT</b> замедление</span>
-      <span><b>ПРОБЕЛ</b> рывок</span>
-      <span><b>Q</b> овердрайв</span>
-      <span><b>ESC</b> пауза</span>
+    <div id="crosshair" class="crosshair hidden">
+      <span></span><span></span><span></span><span></span>
+      <div class="dot"></div>
+    </div>
+
+    <div id="damageVignette" class="damage-vignette"></div>
+
+    <div id="deathOverlay" class="death-overlay hidden">
+      <div class="death-card">
+        <div class="death-title">ПОГИБ</div>
+        <div class="death-msg">Вас убили</div>
+        <div class="death-sub">Возрождение через несколько секунд...</div>
+      </div>
     </div>
   </div>
 
-  <div id="banner">
-    <div class="banner-title"></div>
-    <div class="banner-sub"></div>
-  </div>
-
-  <div id="upgrades" class="upgrades">
-    <div class="up-head">
-      <div class="up-kicker">СИСТЕМА РАЗВИТИЯ</div>
-      <h2 class="up-title">ВЫБЕРИ УЛУЧШЕНИЕ</h2>
-      <div class="up-sub">Уровень повышен — щёлкни карту или нажми 1 / 2 / 3</div>
-    </div>
-    <div class="cards" id="cards"></div>
-  </div>
-
-  <div id="overlay" class="overlay"></div>
-
-  <div class="fx-overlay scanlines"></div>
-  <div class="fx-overlay vignette"></div>
-  <div class="fx-overlay flash" id="flash"></div>
-
-  <div id="touchPad">
-    <button class="tbtn" data-code="Space">РЫВОК</button>
-    <button class="tbtn" data-code="KeyQ">Q</button>
-  </div>
-</div>
-
-<script type="module" src="src/main.js"></script>
+  <script type="module" src="/src/client/main.js"></script>
 </body>
 </html>

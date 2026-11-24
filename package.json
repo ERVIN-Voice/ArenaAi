@@ -1,18 +1,31 @@
 {
-  "name": "neon-void",
+  "name": "arena-shooter-3d",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "NEON VOID — неоновый аркадный twin-stick шутер на чистом Canvas 2D",
+  "description": "3D multiplayer shooter with bots",
   "scripts": {
-    "start": "python3 -m http.server 8080 --bind 0.0.0.0",
-    "test": "node tests/smoke.mjs",
-    "test:ui": "node tests/ui.mjs",
-    "balance": "node tests/balance.mjs",
-    "shots": "node tests/render-shots.mjs"
+    "dev": "node server.js",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server.js",
+    "test": "node --test tests/*.test.mjs",
+    "build:exe": "node scripts/build-exe.mjs",
+    "build:server": "node scripts/build-server.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "three": "^0.170.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@napi-rs/canvas": "^1.1.1",
-    "jsdom": "^31.0.0"
+    "@yao-pkg/pkg": "^6.26.0",
+    "esbuild": "^0.28.2",
+    "vite": "^6.0.0"
+  },
+  "pkg": {
+    "assets": [
+      "dist/**/*"
+    ],
+    "outputPath": "release"
   }
 }
