@@ -1,144 +1,102 @@
-// Баланс и производительность: бот-«средний игрок» без читов.
-import { createCanvas } from '@napi-rs/canvas';
-
-const W = 1440, H = 810;
+// Баланс: сравниваем байки и режимы. Обновлений без рендера — быстро и стабильно.
+const W = 1280, H = 720;
 globalThis.document = {
-  createElement: (tag) => (tag === 'canvas' ? createCanvas(2, 2) : {}),
+  createElement: () => ({}),
   addEventListener() {}, body: {},
 };
 globalThis.window = { innerWidth: W, innerHeight: H, addEventListener() {}, devicePixelRatio: 1 };
+globalThis.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 
 const { Game } = await import('../src/game.js');
 const { FX } = await import('../src/fx.js');
-
-const canvas = createCanvas(W, H);
-const ctx = canvas.getContext('2d');
-const fx = new FX();
+const { BIKES } = await import('../src/data.js');
 
 function makeInput() {
   return {
-    keys: new Set(), justPressed: new Set(),
-    mouse: { x: W / 2, y: H / 3, down: false }, isTouch: false,
-    moveStick: { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0, mag: 0, dx: 0, dy: 0 },
-    aimStick: { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0, mag: 0, dx: 0, dy: 0, angle: 0 },
+    keys: new Set(), justPressed: new Set(), virtual: {}, isTouch: false,
+    moveStick: { active: false, dx: 0, dy: 0, mag: 0 },
+    aimStick: { active: false, dx: 0, dy: 0, mag: 0 },
     down(c) { return this.keys.has(c); },
     pressed(c) { return this.justPressed.has(c); },
-    press(c) { this.justPressed.add(c); },
     endFrame() { this.justPressed.clear(); },
   };
 }
 
-const results = [];
+// «Средний игрок»: держится центра, объезжает ближайшую машину, иногда жмёт нитро.
+function botSteer(game, input) {
+  let targetX = 0;
+  let bestRel = Infinity;
+  for (const car of game.traffic) {
+    let rel = car.z - game.position;
+    if (rel < -game.trackLength / 2) rel += game.trackLength;
+    if (rel < 0 || rel > 3000) continue;
+    if (rel < bestRel) { bestRel = rel; targetX = car.x > 0 ? car.x - 0.7 : car.x + 0.7; }
+  }
+  targetX = Math.max(-0.8, Math.min(0.8, targetX));
+  input.keys.clear();
+  input.keys.add('KeyW');
+  const dx = targetX - game.playerX;
+  if (dx > 0.05) input.keys.add('KeyD');
+  else if (dx < -0.05) input.keys.add('KeyA');
+  if (game.nitro > 60) input.keys.add('Shift');
+}
 
-for (let run = 0; run < 10; run++) {
+function simulate(bikeId, mode, seconds = 90) {
+  const fx = new FX();
   const input = makeInput();
-  let cards = null;
-  let done = false;
+  const result = { bikeId, mode, distance: 0, score: 0, crashes: 0, gameovers: 0, maxSpeed: 0 };
   const game = new Game({
     width: W, height: H, fx, audio: null, input, best: 0,
     callbacks: {
-      onUpgrade: (c) => { cards = c; },
-      onUpgradeEnd: () => {},
-      onBanner: () => {}, onFlash: () => {}, onState: () => {}, onHud: () => {},
-      onGameOver: (res) => { results.push(res); done = true; },
+      onBanner: (t) => { if (t === 'АВАРИЯ!') result.crashes++; },
+      onState: (s) => { if (s === 'gameover') result.gameovers++; },
+      onGameOver: () => { game.startRun(); },
+      onHud: () => {}, onToast: () => {}, onFlash: () => {},
     },
   });
-  game.dpr = 1;
+  game.bikeId = bikeId;
+  game.setMode(mode);
   game.startRun();
-
-  const noiseBase = Math.random() * 100;
-  let aimX = W / 2, aimY = H / 2, retargetIn = 0;
-
-  for (let f = 0; f < 60 * 400 && !done; f++) {
-    if (game.state === 'upgrade') {
-      if (cards && cards.length) {
-        // «игрок» берёт случайную карту
-        game.chooseUpgrade(cards[Math.floor(Math.random() * cards.length)]);
-        cards = null;
-      }
-      input.endFrame();
-      continue;
-    }
-    const p = game.player;
-    const t = f / 60;
-    input.keys.clear();
-    if (p) {
-      const near = game.nearestEnemy(p.x, p.y, 2000);
-      retargetIn -= 1 / 60;
-      if (near && retargetIn <= 0) {
-        retargetIn = 0.22;
-        const a = Math.atan2(near.y - p.y, near.x - p.x) + (Math.sin(t * 7 + noiseBase) * 0.18);
-        aimX = p.x + Math.cos(a) * 400;
-        aimY = p.y + Math.sin(a) * 400;
-      }
-      input.mouse.x = aimX;
-      input.mouse.y = aimY;
-
-      // кайтим: держим дистанцию от ближайшего
-      let vx = Math.cos(t * 0.6);
-      let vy = Math.sin(t * 0.6);
-      if (near) {
-        const d = Math.hypot(near.x - p.x, near.y - p.y);
-        if (d < 230) {
-          vx = (p.x - near.x) / (d || 1);
-          vy = (p.y - near.y) / (d || 1);
-        }
-        if (d < 90 && p.dashCdTimer <= 0) input.justPressed.add('Space');
-      }
-      // не прижимаемся к стенам
-      if (p.x < W * 0.18) vx += 0.8;
-      if (p.x > W * 0.82) vx -= 0.8;
-      if (p.y < H * 0.18) vy += 0.8;
-      if (p.y > H * 0.82) vy -= 0.8;
-      if (vx > 0.3) input.keys.add('KeyD');
-      if (vx < -0.3) input.keys.add('KeyA');
-      if (vy > 0.3) input.keys.add('KeyS');
-      if (vy < -0.3) input.keys.add('KeyW');
-      if (p.overdrive >= 100) input.justPressed.add('KeyQ');
-    }
+  const frames = seconds * 60;
+  for (let f = 0; f < frames; f++) {
+    if (game.state !== 'playing') game.startRun();
+    botSteer(game, input);
     game.update(1 / 60);
     input.endFrame();
+    result.distance = Math.max(result.distance, Math.round(game.distance));
+    result.score = Math.max(result.score, Math.round(game.score));
+    result.maxSpeed = Math.max(result.maxSpeed, game.hud.speedKmh);
   }
-  if (!done) results.push({ score: game.score, wave: game.wave, kills: game.kills, level: game.level, timeout: true });
+  return result;
 }
 
-const waves = results.map((r) => r.wave);
-const avg = waves.reduce((a, b) => a + b, 0) / waves.length;
-console.log('── БАЛАНС (10 ранов, бот-«средний игрок») ──');
-console.log('волны смертей:', waves.sort((a, b) => a - b).join(', '));
-console.log('средняя волна:', avg.toFixed(1));
-console.log('средние очки: ', Math.round(results.reduce((a, r) => a + r.score, 0) / results.length));
-console.log('средние убийства:', Math.round(results.reduce((a, r) => a + r.kills, 0) / results.length));
+const rows = [];
+for (const bike of BIKES) rows.push(simulate(bike.id, '3d'));
+rows.push(simulate('storm', '2d'));
 
-// ── производительность ───────────────────────────────────────────────────
-const input = makeInput();
-let cards = null;
-const game = new Game({
-  width: W, height: H, fx, audio: null, input, best: 0,
-  callbacks: { onUpgrade: (c) => { cards = c; }, onUpgradeEnd: () => {}, onBanner: () => {}, onFlash: () => {}, onState: () => {}, onHud: () => {}, onGameOver: () => {} },
-});
-game.dpr = 1;
-game.startRun();
-for (let f = 0; f < 60 * 90; f++) {
-  if (game.state === 'upgrade') { if (cards) { game.chooseUpgrade(cards[0]); cards = null; } continue; }
-  const p = game.player;
-  if (p) {
-    const near = game.nearestEnemy(p.x, p.y, 2000);
-    if (near) { input.mouse.x = near.x; input.mouse.y = near.y; }
-    input.keys.clear();
-    input.keys.add(f % 120 < 60 ? 'KeyD' : 'KeyA');
-    input.keys.add(f % 200 < 100 ? 'KeyS' : 'KeyW');
-    if (p.hp < p.maxHp) p.hp = p.maxHp;
-  }
-  game.update(1 / 60);
-  input.endFrame();
+console.log('── БАЛАНС MOTO RUSH (90 с на конфигурацию) ─────────────────');
+console.log('байк        режим   дистанция   счёт    аварий  макс.км/ч');
+for (const r of rows) {
+  console.log(
+    r.bikeId.padEnd(11),
+    r.mode.padEnd(6),
+    String(r.distance).padStart(8),
+    String(r.score).padStart(8),
+    String(r.crashes).padStart(7),
+    String(r.maxSpeed).padStart(8),
+  );
 }
-// прогрев
-for (let i = 0; i < 30; i++) { game.update(1 / 60); game.render(ctx); }
-const N = 300;
-const t0 = performance.now();
-for (let i = 0; i < N; i++) { game.update(1 / 60); game.render(ctx); }
-const per = (performance.now() - t0) / N;
-console.log('\n── ПРОИЗВОДИТЕЛЬНОСТЬ ──');
-console.log('врагов:', game.enemies.length, 'частиц:', fx.particles.length, 'пуль:', game.bullets.length + game.ebullets.length);
-console.log('update+render (CPU canvas 1440×810):', per.toFixed(2), 'мс/кадр ≈', Math.round(1000 / per), 'fps');
+
+const fail = [];
+for (const r of rows) {
+  if (r.distance < 400) fail.push(`${r.bikeId}/${r.mode}: слишком малая дистанция`);
+  if (r.maxSpeed < 80) fail.push(`${r.bikeId}/${r.mode}: не разгоняется`);
+}
+const speeds = new Set(rows.filter((r) => r.mode === '3d').map((r) => r.maxSpeed));
+if (speeds.size < 2) fail.push('байки не отличаются по динамике');
+
+if (fail.length) {
+  console.error('\n❌ ПРОВАЛ:', fail.join('; '));
+  process.exit(1);
+}
+console.log('\n✅ BALANCE OK');

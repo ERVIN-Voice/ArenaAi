@@ -22,7 +22,7 @@ const fx = new FX();
 const input = {
   keys: new Set(),
   justPressed: new Set(),
-  mouse: { x: W * 0.7, y: H * 0.35, down: false },
+  virtual: { left: false, right: false, gas: false, brake: false, nitro: false },
   isTouch: false,
   moveStick: { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0, mag: 0, dx: 0, dy: 0 },
   aimStick: { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0, mag: 0, dx: 0, dy: 0, angle: 0 },
@@ -32,8 +32,6 @@ const input = {
   endFrame() { this.justPressed.clear(); },
 };
 
-let onUpgradeCards = null;
-
 const game = new Game({
   width: W,
   height: H,
@@ -42,18 +40,17 @@ const game = new Game({
   input,
   best: 0,
   callbacks: {
-    onUpgrade: (cards) => { onUpgradeCards = cards; },
-    onUpgradeEnd: () => {},
     onBanner: () => {},
     onFlash: () => {},
     onState: () => {},
     onHud: () => {},
+    onToast: () => {},
     onGameOver: () => {},
   },
 });
 game.dpr = 1;
 
-const out = '/tmp/shots';
+const out = 'screenshots';
 fs.mkdirSync(out, { recursive: true });
 
 function shot(name) {
@@ -62,89 +59,76 @@ function shot(name) {
   console.log('saved', name);
 }
 
-function step(seconds, opts = {}) {
+function step(seconds) {
   const frames = Math.round(seconds * 60);
   for (let f = 0; f < frames; f++) {
-    const t = f / 60;
-    if (game.state === 'upgrade') {
-      if (onUpgradeCards) {
-        game.chooseUpgrade(onUpgradeCards[0]);
-        onUpgradeCards = null;
-      }
-      continue;
-    }
     input.keys.clear();
-    const p = game.player;
-    if (p) {
-      const tx = W / 2 + Math.cos(t * 0.55) * W * 0.26;
-      const ty = H / 2 + Math.sin(t * 0.45) * H * 0.26;
-      if (p.x < tx - 26) input.keys.add('KeyD');
-      if (p.x > tx + 26) input.keys.add('KeyA');
-      if (p.y < ty - 26) input.keys.add('KeyS');
-      if (p.y > ty + 26) input.keys.add('KeyW');
-    }
-
-    const target = game.nearestEnemy(game.player ? game.player.x : W / 2, game.player ? game.player.y : H / 2, 3000);
-    if (target) {
-      input.mouse.x = target.x + Math.sin(t * 3) * 20;
-      input.mouse.y = target.y + Math.cos(t * 3) * 20;
-    }
-    if (f % 65 === 0) input.justPressed.add('Space');
-    if (game.player && game.player.overdrive >= 100) input.justPressed.add('KeyQ');
-    if (game.player) game.player.hp = game.player.maxHp;
-
+    input.keys.add('KeyW');
+    if (Math.sin(f * 0.04) > 0.2) input.keys.add('KeyD');
+    else if (Math.sin(f * 0.04) < -0.2) input.keys.add('KeyA');
+    if (f % 90 < 40) input.keys.add('Shift');
+    game.hp = 100; // держим байк живым для красивых кадров
     game.update(1 / 60);
     input.endFrame();
   }
 }
 
-// титульный экран
-game.ambient.forEach((a, i) => { a.x = 120 + (i % 4) * 380 + Math.sin(i) * 60; a.y = 100 + Math.floor(i / 4) * 200; });
-shot('01-title');
+// 1. титульный кадр (трасса ещё стоит)
+shot('01-title-3d');
 
+// 2. заезд днём
 game.startRun();
-step(9);
-shot('02-wave-early');
+game.themeIndex = 0;
+step(6);
+shot('02-race-3d-day');
 
-// ждём плотного боя
-let dense = 0;
-while (game.enemies.length < 9 && dense < 60 * 90) { step(0.5); dense += 30; }
-step(0.6);
-shot('03-wave-mid');
-
-// ждём босса
-let guard = 0;
-while (!game.boss && guard < 60 * 200) {
-  step(1);
-  guard += 60;
-}
-step(5);
-shot('04-boss');
-
-// фаза 3 + овердрайв
-if (game.boss) game.boss.hp = game.boss.maxHp * 0.34;
-if (game.player) game.player.overdrive = 100;
+// 3. закат + нитро
+game.themeIndex = 1;
+game.applyCheatCode('TURBO');
+game.applyCheatCode('FAST');
 step(3);
-shot('05-boss-phase3');
+shot('03-race-3d-sunset');
 
-// витрина: элиты, аптечка, разные типы врагов
-step(4);
-for (const [type, dx, dy] of [['bulwark', -260, -120], ['splitter', -80, 90], ['spitter', 240, -60], ['dasher', 160, 150]]) {
-  const e = game.spawnEnemy(type, W / 2 + dx, H / 2 + dy);
-  if (e) { e.spawnT = 0; e.elite = true; e.hp = e.maxHp = Math.round(e.maxHp * 2.6); }
-}
-game.spawnPickup(W / 2 - 420, H / 2 + 40, 'health');
-if (game.player) { game.player.x = W / 2; game.player.y = H / 2 + 180; }
-step(0.35);
-shot('06-late');
+// 4. ночь
+game.themeIndex = 2;
+game.applyCheatCode('GODMODE');
+step(2.5);
+shot('04-race-3d-night');
 
-// финальный кадр смерти
-if (game.player) {
-  game.player.invuln = 0;
-  game.player.hp = 1;
+// 5. вид сверху
+game.setMode('2d');
+game.themeIndex = 1;
+step(3);
+shot('05-race-2d');
+
+// 6. авария
+game.setMode('3d');
+game.invuln = 0;
+game.crash({});
+step(0.12);
+shot('06-crash');
+
+// 7. плотный трафик + монеты
+game.startRun();
+game.themeIndex = 2;
+for (let i = 0; i < 26; i++) {
+  game.spawnTraffic(game.position + 200 * (10 + i * 4));
+  if (i % 3 === 0) game.spawnCoins(game.position + 200 * (12 + i * 5));
 }
-if (game.boss) game.boss.hp = 1;
-step(0.4);
-shot('07-action');
+step(2.2);
+shot('07-traffic-night');
+
+// 8. машина прямо перед байком (проверка масштаба у камеры)
+game.startRun();
+game.mode = '3d';
+game.themeIndex = 1;
+game.playerX = 0.1;
+game.speed = game.maxSpeed * 0.8;
+game.traffic.length = 0;
+game.coinArr.length = 0;
+game.traffic.push({ id: 1, z: game.position + 1200, x: 0.1, speed: 0, type: 'truck', w: 0.92, color: '#5ef1ff', color2: '#1a4a6a', passed: false, wobble: 0 });
+game.traffic.push({ id: 2, z: game.position + 1900, x: -0.6, speed: 0, type: 'car', w: 0.62, color: '#ff5a5a', color2: '#8a1f2d', passed: false, wobble: 0 });
+game.updateHud();
+shot('08-near-car');
 
 console.log('готово ->', out);

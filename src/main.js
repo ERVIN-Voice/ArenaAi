@@ -1,441 +1,609 @@
-// ─── Точка входа: canvas, игровой цикл и весь DOM-интерфейс ─────────────────
-import { FX } from './fx.js';
-import { AudioEngine } from './audio.js';
-import { Input } from './input.js';
+// ─── MOTO RUSH: точка входа, интерфейс, экраны, чит-консоль ─────────────────
 import { Game } from './game.js';
-import { withAlpha } from './util.js';
+import { FX } from './fx.js';
+import { Input } from './input.js';
+import { AudioEngine } from './audio.js';
+import { BIKES, CHEAT_EFFECTS, getEffect } from './data.js';
+import {
+  addCustomCheat, removeCustomCheat, loadCustomCheats, listAllCheats,
+  findCheat, describeCheat, normalizeCode,
+} from './cheats.js';
 
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d', { alpha: false });
-const overlay = document.getElementById('overlay');
-const upgradesEl = document.getElementById('upgrades');
-const cardsEl = document.getElementById('cards');
-const bannerEl = document.getElementById('banner');
-const bannerTitle = bannerEl.querySelector('.banner-title');
-const bannerSub = bannerEl.querySelector('.banner-sub');
-const flashEl = document.getElementById('flash');
-const body = document.body;
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const fmt = (n) => Math.round(Number(n) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const ui = {
-  hpFill: document.getElementById('hpFill'),
-  hpText: document.getElementById('hpText'),
-  energyFill: document.getElementById('energyFill'),
-  energyText: document.getElementById('energyText'),
-  odFill: document.getElementById('odFill'),
-  odText: document.getElementById('odText'),
-  odStat: document.getElementById('odStat'),
-  score: document.getElementById('score'),
-  wave: document.getElementById('waveLabel'),
-  lvl: document.getElementById('lvlLabel'),
-  xpFill: document.getElementById('xpFill'),
-  combo: document.getElementById('combo'),
-  comboVal: document.getElementById('comboVal'),
-  bossWrap: document.getElementById('bossWrap'),
-  bossFill: document.getElementById('bossFill'),
-  bossPhase: document.getElementById('bossPhase'),
-  hints: document.getElementById('hints'),
-};
+const REC_KEY = 'moto.rush.records.v1';
+const PREF_KEY = 'moto.rush.prefs.v1';
 
-const BOSS_PHASES = ['ФАЗА I', 'ФАЗА II', 'ФАЗА III'];
-const BEST_KEY = 'neonvoid.best.v1';
-
+const canvas = $('#game');
+const ctx = canvas.getContext('2d');
 const fx = new FX();
 const audio = new AudioEngine();
 const input = new Input(canvas);
 
-let best = 0;
-try {
-  best = parseInt(localStorage.getItem(BEST_KEY) || '0', 10) || 0;
-} catch (e) {
-  best = 0;
+// ── сохранения ──────────────────────────────────────────────────────────────
+function loadRecords() {
+  const def = { best: 0, bestDist: 0, coins: 0 };
+  try {
+    const raw = localStorage.getItem(REC_KEY);
+    if (!raw) return def;
+    const o = JSON.parse(raw);
+    return {
+      best: Number(o.best) || 0,
+      bestDist: Number(o.bestDist) || 0,
+      coins: Number(o.coins) || 0,
+    };
+  } catch { return def; }
+}
+function saveRecords(r) {
+  try { localStorage.setItem(REC_KEY, JSON.stringify(r)); } catch { /* приватный режим */ }
+}
+function loadPrefs() {
+  const def = { mode: '3d', bike: 'storm', muted: false };
+  try {
+    const o = JSON.parse(localStorage.getItem(PREF_KEY) || '{}');
+    return {
+      mode: o.mode === '2d' ? '2d' : '3d',
+      bike: BIKES.some((b) => b.id === o.bike) ? o.bike : 'storm',
+      muted: !!o.muted,
+    };
+  } catch { return def; }
+}
+const prefs = loadPrefs();
+let records = loadRecords();
+function savePrefs() {
+  try { localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); } catch { /* ignore */ }
 }
 
-let dpr = 1;
-let game = null;
-let lastCombo = 0;
-let lastScore = -1;
-let lastHpText = -1;
-let hintsTimer = null;
-let audioUnlocked = false;
-
-// ── canvas ─────────────────────────────────────────────────────────────────
-function resize() {
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  canvas.width = Math.max(1, Math.floor(w * dpr));
-  canvas.height = Math.max(1, Math.floor(h * dpr));
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
-  if (game) {
-    game.dpr = dpr;
-    game.resize(w, h);
-  }
-}
-
-resize();
-
-game = new Game({
-  width: window.innerWidth,
-  height: window.innerHeight,
-  fx,
-  audio,
-  input,
-  best,
-  callbacks: {
-    onHud: updateHud,
-    onBanner: showBanner,
-    onUpgrade: showUpgrades,
-    onUpgradeEnd: hideUpgrades,
-    onState: handleState,
-    onFlash: flash,
-    onGameOver: handleGameOver,
-  },
+// ── игра ────────────────────────────────────────────────────────────────────
+const game = new Game({
+  width: window.innerWidth || 1280,
+  height: window.innerHeight || 720,
+  fx, audio, input,
+  best: records.best,
+  // колбэки подключаем чуть ниже, когда готовы элементы интерфейса
+  callbacks: {},
 });
-game.dpr = dpr;
+game.mode = prefs.mode;
+game.bikeId = prefs.bike;
+game.setBike(prefs.bike);
 
+let overlayKind = null;
+let consoleOpen = false;
+let bannerTimer = 0;
+let toastTimer = 0;
+
+// ── размер канваса ──────────────────────────────────────────────────────────
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(300, Math.round(rect.width || window.innerWidth || 960));
+  const h = Math.max(220, Math.round(rect.height || window.innerHeight * 0.6 || 540));
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  game.dpr = dpr;
+  game.resize(w, h);
+}
+if (window.ResizeObserver) {
+  new ResizeObserver(() => resize()).observe($('#app'));
+}
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 120));
 
-// ── звук ───────────────────────────────────────────────────────────────────
-function unlockAudio() {
-  if (audioUnlocked) {
-    if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
-    return;
-  }
-  audioUnlocked = true;
-  try {
-    audio.init();
-    if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
-    if (audio.ready && audio.musicOn && !audio.timer) audio.startMusic();
-  } catch (e) {
-    /* без звука тоже играем */
-  }
-}
-window.addEventListener('pointerdown', unlockAudio, { capture: true });
-window.addEventListener('keydown', unlockAudio, { capture: true });
-
-function toggleMute() {
-  const muted = audio.toggleMute();
-  const btn = document.getElementById('muteBtn');
-  if (btn) {
-    btn.textContent = muted ? '✕' : '♪';
-    btn.style.opacity = muted ? '0.45' : '1';
-  }
-  if (!muted) audio.init();
-}
-
-// ── HUD ────────────────────────────────────────────────────────────────────
-function updateHud(h) {
-  ui.hpFill.style.width = (h.hp * 100).toFixed(1) + '%';
-  if (lastHpText !== h.hpVal) {
-    ui.hpText.textContent = h.hpVal;
-    lastHpText = h.hpVal;
-  }
-  ui.energyFill.style.width = (h.energy * 100).toFixed(1) + '%';
-  ui.energyText.textContent = Math.round(h.energy * 100) + '%';
-  ui.odFill.style.width = (h.overdrive * 100).toFixed(1) + '%';
-  ui.odText.textContent = Math.round(h.overdrive * 100) + '%';
-  ui.odStat.classList.toggle('ready', !!h.odReady);
-  ui.odStat.classList.toggle('active', h.odActive > 0);
-
-  if (lastScore !== h.score) {
-    ui.score.textContent = h.score.toLocaleString('ru-RU');
-    lastScore = h.score;
-  }
-  ui.wave.textContent = 'ВОЛНА ' + Math.max(1, h.wave);
-  ui.lvl.textContent = 'УР. ' + h.level;
-  ui.xpFill.style.width = (h.xp * 100).toFixed(1) + '%';
-
-  if (h.combo >= 3) {
-    ui.combo.classList.add('show');
-    ui.comboVal.textContent = 'x' + h.comboMul.toFixed(1);
-    if (h.combo > lastCombo) {
-      ui.combo.classList.add('pulse');
-      setTimeout(() => ui.combo.classList.remove('pulse'), 110);
-    }
-  } else {
-    ui.combo.classList.remove('show');
-  }
-  lastCombo = h.combo;
-
-  if (h.boss) {
-    ui.bossWrap.classList.add('show');
-    ui.bossFill.style.width = (h.boss.hp * 100).toFixed(1) + '%';
-    ui.bossPhase.textContent = BOSS_PHASES[h.boss.phase - 1] || 'ФАЗА I';
-  } else {
-    ui.bossWrap.classList.remove('show');
-  }
-}
-
-// ── баннер ─────────────────────────────────────────────────────────────────
-const BANNER_COLORS = {
-  wave: '#5ef1ff',
-  boss: '#ff2f6d',
-  clear: '#3dffa0',
-  start: '#5ef1ff',
-  phase: '#ffd24a',
-  od: '#ffd24a',
+// ── HUD ─────────────────────────────────────────────────────────────────────
+const hudEls = {
+  speed: $('#speedVal'), score: $('#score'), coins: $('#coinsLabel'),
+  top: $('#topLabel'), hp: $('#hpText'), hpFill: $('#hpFill'),
+  nitro: $('#nitroText'), nitroFill: $('#nitroFill'),
+  bike: $('#bikeLabel'), mode: $('#modeLabel'), dist: $('#distLabel'), near: $('#nearLabel'),
+  active: $('#activeCheats'),
 };
+let lastActiveKey = '';
 
-function showBanner(title, sub, kind = 'wave') {
-  bannerEl.classList.remove('show');
-  void bannerEl.offsetWidth;
-  bannerTitle.textContent = title;
-  bannerSub.textContent = sub || '';
-  bannerEl.style.setProperty('--bc', BANNER_COLORS[kind] || '#5ef1ff');
-  bannerEl.classList.add('show');
+function syncHud(h) {
+  if (!h) return;
+  hudEls.speed.textContent = fmt(Math.max(0, h.speedKmh));
+  hudEls.score.textContent = fmt(h.score);
+  hudEls.coins.textContent = `◉ ${fmt(h.coins)}`;
+  hudEls.top.textContent = `топ ${fmt(h.topSpeed)} км/ч`;
+  hudEls.hp.textContent = h.hpVal ?? Math.round(h.hp * 100);
+  hudEls.hpFill.style.width = `${Math.max(0, Math.min(100, h.hp * 100))}%`;
+  hudEls.hpFill.style.background = h.hp > 0.6 ? '' : h.hp > 0.3 ? 'linear-gradient(90deg,#ffd24a,#ff8a3d)' : 'linear-gradient(90deg,#ff4d5a,#ff2d6a)';
+  const n = Math.round(h.nitro * 100);
+  hudEls.nitro.textContent = h.nitroInf ? '∞' : `${n}%`;
+  hudEls.nitroFill.style.width = `${n}%`;
+  hudEls.nitroFill.classList.toggle('inf', !!h.nitroInf);
+  hudEls.bike.textContent = h.bike;
+  hudEls.mode.textContent = h.mode === '3d' ? '3D' : '2D';
+  hudEls.dist.textContent = `${fmt(h.distance)} м`;
+  hudEls.near.textContent = `обгонов: ${h.nearMisses}`;
+
+  const list = h.activeCheats || [];
+  const key = list.map((c) => `${c.code}:${c.left}`).join('|');
+  if (key !== lastActiveKey) {
+    lastActiveKey = key;
+    hudEls.active.innerHTML = list.map((c) => `
+      <span class="chip-cheat">
+        <b>${esc(c.code)}</b>${c.left ? `<i>${c.left}с</i>` : '<i>∞</i>'}
+      </span>`).join('') + (h.god ? '<span class="chip-cheat god"><b>ЩИТ</b></span>' : '')
+      + (h.ghost ? '<span class="chip-cheat ghost"><b>ПРИЗРАК</b></span>' : '');
+    const side = $('#activeList');
+    side.innerHTML = list.length || h.god || h.ghost
+      ? list.map((c) => `<span class="active-pill"><b>${esc(c.code)}</b> ${esc(c.name)}${c.left ? ` · ${c.left}с` : ''}</span>`).join('')
+        + (h.god ? '<span class="active-pill god">🛡 неуязвимость</span>' : '')
+        + (h.ghost ? '<span class="active-pill ghost">◌ призрак</span>' : '')
+      : '<span class="empty">—</span>';
+  }
 }
 
-// ── вспышки ────────────────────────────────────────────────────────────────
-const FLASH_COLORS = {
-  hit: 'rgba(255,45,90,0.2)',
-  level: 'rgba(255,214,90,0.16)',
-  od: 'rgba(255,200,90,0.3)',
-  boss: 'rgba(255,255,255,0.4)',
-  death: 'rgba(255,255,255,0.55)',
-};
+// ── баннеры, тосты, вспышки ─────────────────────────────────────────────────
+const bannerEl = $('#banner');
+function showBanner(title, sub, kind = '') {
+  bannerEl.querySelector('.banner-title').textContent = title || '';
+  bannerEl.querySelector('.banner-sub').textContent = sub || '';
+  bannerEl.className = `banner-${kind}`;
+  bannerEl.classList.add('active');
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => bannerEl.classList.remove('active'), 1500);
+}
 
-function flash(kind) {
-  flashEl.style.transition = 'none';
-  flashEl.style.background = FLASH_COLORS[kind] || 'rgba(255,255,255,0.3)';
-  flashEl.style.opacity = '1';
+const toastEl = $('#toast');
+function toast(msg, ok = true) {
+  toastEl.textContent = msg;
+  toastEl.className = `toast show ${ok ? 'ok' : 'err'}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.className = 'toast'; }, 2400);
+}
+
+const flashEl = $('#flash');
+function flash(kind = 'hit') {
+  flashEl.classList.remove('hit', 'cheat');
   void flashEl.offsetWidth;
-  flashEl.style.transition = kind === 'hit' ? 'opacity 0.5s ease-out' : 'opacity 0.6s ease-out';
-  flashEl.style.opacity = '0';
+  flashEl.classList.add(kind === 'cheat' ? 'cheat' : 'hit');
 }
 
-// ── экраны ─────────────────────────────────────────────────────────────────
-function hideOverlay() {
-  overlay.classList.remove('active');
-  overlay.innerHTML = '';
-}
+// ── экраны-оверлеи ──────────────────────────────────────────────────────────
+const overlayEl = $('#overlay');
 
-function showTitle() {
-  body.classList.remove('playing');
-  overlay.innerHTML = `
+function titleScreen() {
+  const cheats = listAllCheats().filter((c) => c.builtin).slice(0, 4);
+  return `
     <div class="screen">
-      <div class="logo"><span class="a">NEON</span><span class="b">VOID</span></div>
-      <p class="tag">
-        Последний живой осколок света в мёртвой сети.<br />
-        Геометрия идёт за твоим ядром — держись, собирай осколки, становись сильнее.
-      </p>
-      <div class="controls">
-        <span><kbd>WASD</kbd> движение</span>
-        <span><kbd>МЫШЬ</kbd> прицел · автоогонь</span>
-        <span><kbd>SHIFT</kbd> замедление времени</span>
-        <span><kbd>ПРОБЕЛ</kbd> рывок</span>
-        <span><kbd>Q</kbd> овердрайв</span>
-        <span><kbd>ESC</kbd> пауза</span>
+      <div class="screen-kicker">аркадные мотогонки · canvas 2d</div>
+      <h1 class="screen-title">MOTO <span>RUSH</span></h1>
+      <p class="screen-text">Уходи от трафика, собирай монеты, жми нитро и вводи чит-коды.<br>Свои коды можно придумать и сохранить в разделе «Читы».</p>
+      <div class="screen-chips">
+        <span>🏍 ${esc(game.bike.name)}</span>
+        <span>${game.mode === '3d' ? '🧊 псевдо-3D' : '🗺 вид сверху'}</span>
+        <span>🏆 рекорд ${fmt(records.best)}</span>
       </div>
-      <div class="touch-hint">На телефоне: левый палец — движение, правый — прицел, кнопки справа — рывок и овердрайв</div>
-      <button class="btn" id="startBtn">В БОЙ</button>
-      <div class="best">ЛУЧШИЙ РЕЗУЛЬТАТ <b>${best.toLocaleString('ru-RU')}</b></div>
-    </div>`;
-  overlay.classList.add('active');
-  document.getElementById('startBtn').addEventListener('click', startGame);
-}
-
-function showPause() {
-  body.classList.remove('playing');
-  overlay.innerHTML = `
-    <div class="screen">
-      <div class="pause-title">ПАУЗА</div>
-      <div class="gameover-sub">система приостановлена</div>
-      <div class="btn-row">
-        <button class="btn" id="resumeBtn">ПРОДОЛЖИТЬ</button>
-        <button class="btn ghost" id="restartBtn">ЗАНОВО</button>
+      <button class="btn big" data-act="start">СТАРТ ▸</button>
+      <div class="screen-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> руль и газ · <kbd>SHIFT</kbd> нитро · <kbd>C</kbd> чит-консоль</div>
+      <div class="screen-cheats">
+        ${cheats.map((c) => `<button class="mini-cheat" data-act="cheat" data-code="${esc(c.code)}"><b>${esc(c.code)}</b><span>${esc(c.hint || c.name)}</span></button>`).join('')}
       </div>
     </div>`;
-  overlay.classList.add('active');
-  document.getElementById('resumeBtn').addEventListener('click', () => game.togglePause());
-  document.getElementById('restartBtn').addEventListener('click', startGame);
 }
 
-function handleGameOver(res) {
-  if (res.score > best) {
-    best = res.score;
-    try {
-      localStorage.setItem(BEST_KEY, String(best));
-    } catch (e) {
-      /* ignore */
-    }
-    game.best = best;
-  }
-  audio.stopMusic();
-  body.classList.remove('playing');
-  const stats = [
-    ['ОЧКИ', res.score],
-    ['ВОЛНА', res.wave],
-    ['УНИЧТОЖЕНО', res.kills],
-    ['УРОВЕНЬ', res.level],
-  ];
-  overlay.innerHTML = `
+function pauseScreen() {
+  return `
     <div class="screen">
-      <div class="gameover-title">СИГНАЛ ПОТЕРЯН</div>
-      <div class="gameover-sub">ядро уничтожено</div>
-      ${res.newBest ? '<div class="new-best">НОВЫЙ РЕКОРД</div>' : ''}
-      <div class="stats-grid">
-        ${stats.map(([k, v]) => `<div class="stat-cell"><div class="k">${k}</div><div class="v">${v.toLocaleString('ru-RU')}</div></div>`).join('')}
+      <div class="screen-kicker">пауза</div>
+      <h2 class="screen-title small">ПЕРЕДЫШКА</h2>
+      <div class="screen-chips">
+        <span>счёт ${fmt(game.score)}</span><span>${fmt(Math.round(game.distance))} м</span><span>◉ ${fmt(game.coins)}</span>
       </div>
-      <div class="btn-row">
-        <button class="btn" id="retryBtn">ЕЩЁ РАЗ</button>
+      <div class="screen-buttons">
+        <button class="btn" data-act="resume">ПРОДОЛЖИТЬ</button>
+        <button class="btn ghost" data-act="restart">ЗАНОВО</button>
+        <button class="btn ghost" data-act="open-cheats">ЧИТ-КОНСОЛЬ</button>
       </div>
-      <div class="best">ЛУЧШИЙ РЕЗУЛЬТАТ <b>${best.toLocaleString('ru-RU')}</b></div>
+      <div class="screen-hint"><kbd>ESC</kbd> продолжить · <kbd>V</kbd> сменить 2D / 3D</div>
     </div>`;
-  overlay.classList.add('active');
-  document.getElementById('retryBtn').addEventListener('click', startGame);
 }
 
-// ── апгрейды ───────────────────────────────────────────────────────────────
-let currentCards = [];
-
-function showUpgrades(cards) {
-  currentCards = cards;
-  body.classList.remove('playing');
-  cardsEl.innerHTML = cards.map((c, i) => `
-    <button class="card" data-i="${i}" style="--c:${c.rarityColor};--cg:${withAlpha(c.rarityColor, 0.28)}">
-      <div class="card-rarity">${c.rarityLabel}</div>
-      <div class="card-icon">${c.icon}</div>
-      <div class="card-name">${c.name}</div>
-      <div class="card-desc">${c.desc}</div>
-      <div class="card-foot">
-        <span>${c.stack > 0 ? `УРОВЕНЬ ${c.stack} → ${c.stack + 1}` : 'НОВОЕ'}</span>
-        <span class="num">${i + 1}</span>
+function overScreen(res) {
+  return `
+    <div class="screen">
+      <div class="screen-kicker">заезд окончен</div>
+      <h2 class="screen-title small">${res.newBest ? 'НОВЫЙ РЕКОРД!' : 'ФИНИШ'}</h2>
+      <div class="result-grid">
+        <div><span>Счёт</span><b>${fmt(res.score)}</b></div>
+        <div><span>Дистанция</span><b>${fmt(res.distance)} м</b></div>
+        <div><span>Монеты</span><b>◉ ${fmt(res.coins)}</b></div>
+        <div><span>Макс. скорость</span><b>${fmt(res.topSpeed)} км/ч</b></div>
+        <div><span>Обгоны</span><b>${fmt(res.nearMisses)}</b></div>
+        <div><span>Рекорд</span><b>${fmt(records.best)}</b></div>
       </div>
-    </button>`).join('');
-  upgradesEl.classList.add('active');
+      <div class="screen-buttons">
+        <button class="btn" data-act="start">ЕЩЁ ЗАЕЗД ▸</button>
+        <button class="btn ghost" data-act="title">В МЕНО</button>
+      </div>
+      <div class="screen-hint">${esc(res.bike)} · ${res.mode === '3d' ? '3D' : '2D'} · попробуй чит <kbd>RICH</kbd> на монеты</div>
+    </div>`;
 }
 
-function hideUpgrades() {
-  upgradesEl.classList.remove('active');
-  body.classList.add('playing');
+function setOverlay(kind, html = '') {
+  overlayKind = kind;
+  overlayEl.innerHTML = html;
+  overlayEl.classList.toggle('open', !!kind);
 }
-
-function pickCard(i) {
-  if (game.state !== 'upgrade') return;
-  const card = currentCards[i];
-  if (!card) return;
-  audio.uiClick();
-  game.chooseUpgrade(card);
-  if (game.state !== 'upgrade') hideUpgrades();
+function hideOverlay(kind = null) {
+  setOverlay(null);
+  if (kind) overlayKind = kind;
 }
+function showTitle() { setOverlay('title', titleScreen()); }
+function showPause() { if (!consoleOpen) setOverlay('pause', pauseScreen()); }
 
-cardsEl.addEventListener('click', (e) => {
-  const btn = e.target.closest('.card');
-  if (!btn) return;
-  pickCard(parseInt(btn.dataset.i, 10));
-});
-
-// ── состояния ──────────────────────────────────────────────────────────────
-function handleState(state) {
+function onState(state) {
   if (state === 'playing') {
     hideOverlay();
-    upgradesEl.classList.remove('active');
-    body.classList.add('playing');
+    lastActiveKey = '';
   } else if (state === 'paused') {
     showPause();
-  } else if (state === 'dying' || state === 'gameover') {
-    body.classList.remove('playing');
   }
 }
 
+function onGameOver(res) {
+  const isBest = res.score > records.best;
+  records.best = Math.max(records.best, res.score);
+  records.bestDist = Math.max(records.bestDist, res.distance);
+  records.coins += res.coins;
+  game.best = records.best;
+  saveRecords(records);
+  renderRecords();
+  setOverlay('over', overScreen({ ...res, newBest: isBest }));
+  if (isBest) flash('cheat');
+}
+
+// подключаем колбэки движка к DOM (элементы и функции уже готовы)
+Object.assign(game.cb, {
+  onHud: syncHud,
+  onBanner: showBanner,
+  onToast: (msg, ok) => toast(msg, ok),
+  onFlash: flash,
+  onState,
+  onGameOver,
+});
+game.updateHud();
+
+// ── рекорды ─────────────────────────────────────────────────────────────────
+function renderRecords() {
+  $('#recScore').textContent = fmt(records.best);
+  $('#recDist').textContent = `${fmt(records.bestDist)} м`;
+  $('#recCoins').textContent = fmt(records.coins);
+}
+
+// ── запуск / пауза ──────────────────────────────────────────────────────────
 function startGame() {
-  unlockAudio();
-  hideOverlay();
-  upgradesEl.classList.remove('active');
-  currentCards = [];
-  lastCombo = 0;
-  lastScore = -1;
-  body.classList.add('playing');
-  input.justPressed.clear();
-  game.best = best;
-  game.fx.clear();
-  game.startRun();
   audio.init();
-  if (audio.ready) audio.startMusic();
-
-  ui.hints.classList.remove('hidden');
-  clearTimeout(hintsTimer);
-  hintsTimer = setTimeout(() => ui.hints.classList.add('hidden'), 14000);
+  audio.uiClick?.();
+  game.best = records.best;
+  game.startRun();
+  hideOverlay();
 }
-
-// ── ввод интерфейса ────────────────────────────────────────────────────────
-window.addEventListener('keydown', (e) => {
-  unlockAudio();
-
-  if (e.code === 'Escape' || e.code === 'KeyP') {
-    if (game.state === 'playing') game.togglePause();
-    else if (game.paused) game.togglePause();
-    return;
-  }
-  if (e.code === 'KeyM') {
-    toggleMute();
-    return;
-  }
-  if (e.code === 'KeyR' && (game.state === 'gameover' || game.paused)) {
-    startGame();
-    return;
-  }
-  if (game.state === 'upgrade') {
-    if (e.code === 'Digit1' || e.code === 'Numpad1') pickCard(0);
-    if (e.code === 'Digit2' || e.code === 'Numpad2') pickCard(1);
-    if (e.code === 'Digit3' || e.code === 'Numpad3') pickCard(2);
-    return;
-  }
-  if (game.state === 'title' && (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter')) {
-    startGame();
-  } else if (game.state === 'gameover' && (e.code === 'Space' || e.code === 'Enter' || e.code === 'NumpadEnter')) {
-    startGame();
-  }
-});
-
-document.getElementById('muteBtn').addEventListener('click', (e) => {
-  e.stopPropagation();
-  toggleMute();
-});
-document.getElementById('pauseBtn').addEventListener('click', (e) => {
-  e.stopPropagation();
+function togglePause() {
   if (game.state === 'playing') game.togglePause();
+}
+function toggleMute() {
+  audio.init();
+  const muted = audio.toggleMute();
+  prefs.muted = muted;
+  savePrefs();
+  $('#muteBtn').classList.toggle('off', muted);
+  $('#muteBtn').textContent = muted ? '✕' : '♪';
+  toast(muted ? 'Звук выключен' : 'Звук включён');
+}
+
+// ── 2D / 3D ─────────────────────────────────────────────────────────────────
+function switchMode(m, silent = false) {
+  if (!m) m = game.mode === '3d' ? '2d' : '3d';
+  if (m === game.mode) return;
+  game.setMode(m);
+  prefs.mode = m;
+  savePrefs();
+  $$('.mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
+  if (!silent) toast(m === '3d' ? 'Режим 3D: псевдо-3D трасса' : 'Режим 2D: вид сверху');
+  if (overlayKind === 'title') setOverlay('title', titleScreen());
+}
+
+// ── гараж ───────────────────────────────────────────────────────────────────
+function renderGarage() {
+  const list = $('#bikeList');
+  list.innerHTML = BIKES.map((b) => {
+    const stat = (v, max) => `<i style="width:${Math.round((v / max) * 100)}%"></i>`;
+    return `
+      <div class="bike-card ${b.id === game.bikeId ? 'selected' : ''}" data-act="bike" data-id="${b.id}" role="button" tabindex="0">
+        <div class="bike-swatch" style="--c1:${b.color};--c2:${b.color2}">🏍</div>
+        <div class="bike-info">
+          <div class="bike-name">${esc(b.name)} ${b.id === game.bikeId ? '<em>выбран</em>' : ''}</div>
+          <div class="bike-desc">${esc(b.desc)}</div>
+          <div class="bike-stats">
+            <span>скорость<i class="bar-mini">${stat(b.maxSpeed, 1.2)}</i></span>
+            <span>разгон<i class="bar-mini">${stat(b.accel, 1.3)}</i></span>
+            <span>руль<i class="bar-mini">${stat(b.handling, 1.3)}</i></span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+function selectBike(id) {
+  if (id === game.bikeId) return;
+  game.setBike(id);
+  prefs.bike = id;
+  savePrefs();
+  audio.init();
+  audio.uiClick?.();
+  renderGarage();
+  toast(`${game.bike.name} — в седле`);
+  if (overlayKind === 'title') setOverlay('title', titleScreen());
+}
+
+// ── чит-коды: списки ────────────────────────────────────────────────────────
+function cheatCard(c, custom = false) {
+  return `
+    <div class="cheat-card ${custom ? 'custom' : ''}" data-act="cheat" data-code="${esc(c.code)}" role="button" tabindex="0" title="Активировать ${esc(c.code)}">
+      <div class="cheat-head">
+        <b class="cheat-code">${esc(c.code)}</b>
+        ${custom ? `<button class="cheat-del" data-act="del" data-code="${esc(c.code)}" title="Удалить">✕</button>` : '<span class="cheat-tag">встроенный</span>'}
+      </div>
+      <div class="cheat-name">${esc(c.name || c.code)}</div>
+      <div class="cheat-desc">${esc(c.hint || describeCheat(c))}</div>
+      ${custom && c.effect === 'speed_mul' ? '' : ''}
+    </div>`;
+}
+
+function renderCheatLists() {
+  const all = listAllCheats();
+  const builtins = all.filter((c) => c.builtin);
+  const customs = all.filter((c) => !c.builtin);
+  $('#builtinList').innerHTML = builtins.map((c) => cheatCard(c, false)).join('');
+  $('#customList').innerHTML = customs.map((c) => cheatCard(c, true)).join('');
+  $('#customEmpty').style.display = customs.length ? 'none' : 'block';
+  $('#customCount').textContent = customs.length ? `${customs.length}` : '';
+
+}
+
+// ── конструктор своих читов ────────────────────────────────────────────────
+const form = $('#cheatForm');
+const cfCode = $('#cfCode');
+const cfName = $('#cfName');
+const cfEffect = $('#cfEffect');
+const cfValue = $('#cfValue');
+const cfValueLabel = $('#cfValueLabel');
+const cfDuration = $('#cfDuration');
+const cfError = $('#cfError');
+
+function initCheatForm() {
+  cfEffect.innerHTML = CHEAT_EFFECTS.map((e) => `<option value="${e.id}">${esc(e.icon)} ${esc(e.name)}</option>`).join('');
+  cfEffect.value = 'coins';
+  applyEffectDefaults();
+  cfEffect.addEventListener('change', () => applyEffectDefaults());
+}
+
+function applyEffectDefaults() {
+  const eff = getEffect(cfEffect.value) || CHEAT_EFFECTS[0];
+  cfValueLabel.textContent = eff.valueLabel || '';
+  cfValue.min = eff.min;
+  cfValue.max = eff.max;
+  cfValue.step = eff.step;
+  cfValue.value = eff.defValue;
+  cfValue.disabled = eff.min === eff.max;
+  cfDuration.max = eff.timed ? 120 : 0;
+  cfDuration.value = eff.timed ? eff.defValue : 0;
+  cfDuration.disabled = !eff.timed;
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  cfError.textContent = '';
+  const code = normalizeCode(cfCode.value);
+  const eff = getEffect(cfEffect.value);
+  if (!eff) { cfError.textContent = 'Выбери эффект'; return; }
+  let value = Number(cfValue.value);
+  if (!Number.isFinite(value)) value = eff.defValue;
+  value = Math.min(eff.max, Math.max(eff.min, value));
+  let duration = eff.timed ? Math.max(1, Math.min(120, Math.round(Number(cfDuration.value) || eff.defValue))) : 0;
+  const res = addCustomCheat({ code, name: cfName.value, effect: eff.id, value, duration });
+  if (!res.ok) {
+    cfError.textContent = res.error;
+    audio.init();
+    audio.cheatFail?.();
+    cfCode.focus();
+    return;
+  }
+  audio.init();
+  audio.cheatOk?.();
+  renderCheatLists();
+  toast(`Код ${res.cheat.code} сохранён — теперь его можно ввести`, true);
+  cfCode.value = '';
+  cfName.value = '';
+  applyEffectDefaults();
+  flash('cheat');
 });
 
-// мобильные кнопки
-for (const btn of document.querySelectorAll('#touchPad .tbtn')) {
-  const fire = (e) => {
+// ── чит-консоль ─────────────────────────────────────────────────────────────
+const consoleEl = $('#cheatConsole');
+const cheatInput = $('#cheatInput');
+const cheatHistory = $('#cheatHistory');
+const history = [];
+
+let consolePausedGame = false;
+function openConsole() {
+  consoleEl.classList.add('open');
+  consoleOpen = true;
+  // пока вводим код — заезд «мягко» замирает, но экран паузы не мешает
+  if (game.state === 'playing' && !game.paused) {
+    game.paused = true;
+    consolePausedGame = true;
+  }
+  setTimeout(() => cheatInput.focus(), 30);
+}
+function closeConsole() {
+  consoleEl.classList.remove('open');
+  consoleOpen = false;
+  cheatInput.blur();
+  if (consolePausedGame) {
+    consolePausedGame = false;
+    if (game.state === 'playing') game.paused = false;
+  }
+}
+function toggleConsole() {
+  if (consoleOpen) closeConsole(); else openConsole();
+}
+
+function applyCode(raw) {
+  const code = normalizeCode(raw);
+  if (!code) return { ok: false, message: 'Пустой код' };
+  if (!findCheat(code)) {
+    audio.init();
+    audio.cheatFail?.();
+    toast(`Код «${code}» не найден`, false);
+    return { ok: false, message: 'не найден' };
+  }
+  const cheat = findCheat(code);
+  if (game.state !== 'playing' && cheat.effect !== 'theme') {
+    toast(`Код ${code} есть! Запусти заезд — и вводи`, false);
+    return { ok: false, message: 'нужен заезд' };
+  }
+  const res = game.applyCheatCode(code);
+  return res;
+}
+
+function submitConsoleCode() {
+  const raw = cheatInput.value;
+  if (!raw.trim()) return;
+  const res = applyCode(raw);
+  history.unshift({ code: normalizeCode(raw), ok: !!res.ok });
+  history.length = Math.min(history.length, 6);
+  cheatHistory.innerHTML = history.map((h) => `<span class="hist ${h.ok ? 'ok' : 'err'}">${h.ok ? '✓' : '✕'} ${esc(h.code)}</span>`).join('');
+  cheatInput.value = '';
+  cheatInput.focus();
+}
+
+$('#cheatApply').addEventListener('click', submitConsoleCode);
+$('#cheatClose').addEventListener('click', closeConsole);
+cheatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); submitConsoleCode(); }
+});
+$('#cheatBtn').addEventListener('click', toggleConsole);
+$('#cheatBtnTop').addEventListener('click', () => { toggleConsole(); $('#cheats').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+$('#pauseBtn').addEventListener('click', () => { audio.init(); togglePause(); });
+$('#muteBtn').addEventListener('click', toggleMute);
+$$('.mode-btn').forEach((b) => b.addEventListener('click', () => switchMode(b.dataset.mode)));
+
+// ── удаление своих кодов ────────────────────────────────────────────────────
+function deleteCheat(code) {
+  removeCustomCheat(code);
+  renderCheatLists();
+  toast(`Код ${code} удалён`, false);
+  audio.init();
+  audio.click?.();
+}
+
+// ── тач-кнопки ──────────────────────────────────────────────────────────────
+$$('#touchPad .tbtn').forEach((btn) => {
+  const key = btn.dataset.v;
+  const set = (v) => { input.virtual[key] = v; btn.classList.toggle('held', v); };
+  btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    unlockAudio();
-    input.press(btn.dataset.code);
-  };
-  btn.addEventListener('pointerdown', fire);
+    input.isTouch = true;
+    document.body.classList.add('touch');
+    set(true);
+    btn.setPointerCapture?.(e.pointerId);
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => btn.addEventListener(ev, () => set(false)));
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+});
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'touch') {
+    input.isTouch = true;
+    document.body.classList.add('touch');
+  }
+});
+
+// ── делегирование кликов ────────────────────────────────────────────────────
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.dataset.act;
+  audio.init();
+  if (act === 'start') { startGame(); return; }
+  if (act === 'resume') { game.togglePause(); return; }
+  if (act === 'restart') { startGame(); return; }
+  if (act === 'title') { showTitle(); audio.click?.(); return; }
+  if (act === 'open-cheats') { openConsole(); return; }
+  if (act === 'bike') { selectBike(el.dataset.id); return; }
+  if (act === 'del') {
+    e.stopPropagation();
+    deleteCheat(el.dataset.code);
+    return;
+  }
+  if (act === 'cheat') {
+    const code = el.dataset.code;
+    const res = applyCode(code);
+    if (!res.ok && game.state !== 'playing') {
+      const cheat = findCheat(code);
+      if (cheat) toast(`${cheat.code}: ${describeCheat(cheat)} — жми СТАРТ`, true);
+    }
+    return;
+  }
+});
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target?.tagName || '').toLowerCase();
+  const field = tag === 'input' || tag === 'textarea' || tag === 'select';
+  if (field) return;
+  if (e.code === 'Space' || e.code === 'Enter') {
+    if (overlayKind === 'title' || overlayKind === 'over') {
+      e.preventDefault();
+      startGame();
+    }
+  }
+});
+
+// ── горячие клавиши в кадре ─────────────────────────────────────────────────
+function handleHotkeys() {
+  if (input.pressed('KeyC') || input.pressed('Backquote')) {
+    toggleConsole();
+    return;
+  }
+  if (input.pressed('KeyV')) switchMode();
+  if (input.pressed('KeyM')) toggleMute();
+  if (input.pressed('Escape')) {
+    if (consoleOpen) { closeConsole(); input.keys.delete('Escape'); return; }
+    if (game.state === 'playing') togglePause();
+    else if (overlayKind === 'over') showTitle();
+  } else if (input.pressed('KeyP')) {
+    togglePause();
+  }
 }
 
-// пауза при потере фокуса
-window.addEventListener('blur', () => {
-  if (game.state === 'playing' && !game.paused) game.togglePause();
-});
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && game.state === 'playing' && !game.paused) game.togglePause();
-});
-
-// тач-режим
-if (matchMedia('(hover: none)').matches || 'ontouchstart' in window) {
-  body.classList.add('touch');
-  input.isTouch = true;
-}
-
-// ── игровой цикл ───────────────────────────────────────────────────────────
-let last = performance.now();
+// ── цикл ────────────────────────────────────────────────────────────────────
+let lastT = performance.now();
 function frame(now) {
-  const dt = Math.min((now - last) / 1000, 0.05);
-  last = now;
+  const dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000));
+  lastT = now;
+  handleHotkeys();
   game.update(dt);
   game.render(ctx);
   input.endFrame();
   requestAnimationFrame(frame);
 }
 
+// ── инициализация ───────────────────────────────────────────────────────────
+resize();
+renderGarage();
+renderCheatLists();
+renderRecords();
+initCheatForm();
+$$('.mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === game.mode));
+$('#muteBtn').classList.toggle('off', prefs.muted);
+audio.muted = prefs.muted;
 showTitle();
+syncHud(game.hud);
 requestAnimationFrame(frame);
 
-// отладочный доступ из консоли
-window.__neon = { game, fx, audio, input };
+// удобно для отладки и тестов
+window.__moto = { game, audio, input, fx, startGame, switchMode, applyCode, openConsole, closeConsole, records: () => records };

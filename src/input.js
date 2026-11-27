@@ -6,15 +6,25 @@ export class Input {
     this.justPressed = new Set();
     this.mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2, down: false };
     this.isTouch = false;
+    this.virtual = { left: false, right: false, gas: false, brake: false, nitro: false };
     this.moveStick = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0, mag: 0, dx: 0, dy: 0 };
     this.aimStick = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0, mag: 0, dx: 0, dy: 0, angle: 0 };
     this._bind();
   }
 
   _bind() {
-    const block = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'KeyQ']);
+    const block = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
+    const isField = (el) => {
+      const tag = (el?.tagName || '').toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || el?.isContentEditable;
+    };
     window.addEventListener('keydown', (e) => {
-      if (block.has(e.code) && e.target === document.body) e.preventDefault();
+      // набор текста в полях не должен крутить руль и жать газ
+      if (isField(e.target)) {
+        if (e.code === 'Escape' && !this.keys.has('Escape')) this.justPressed.add('Escape');
+        return;
+      }
+      if (block.has(e.code)) e.preventDefault();
       if (!this.keys.has(e.code)) this.justPressed.add(e.code);
       this.keys.add(e.code);
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') this.keys.add('Shift');

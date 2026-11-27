@@ -1,148 +1,94 @@
-export const ARENA_PAD = 26;
-
-// ─── Палитра ───────────────────────────────────────────────────────────────
-export const PALETTE = {
-  bg: '#04050c',
-  grid: '#0e2a44',
-  player: '#5ef1ff',
-  playerCore: '#ffffff',
-  bullet: '#8ffbff',
-  crit: '#fff2a8',
-  enemyBullet: '#ff5a8a',
-  orb: '#5dffc4',
-  hp: '#ff4d7d',
-  energy: '#42e9ff',
-  od: '#ffd24a',
-  boss: '#ff2f6d',
-  white: '#ffffff',
-};
-
-// ─── Типы врагов ───────────────────────────────────────────────────────────
-export const ENEMY_TYPES = {
-  drifter: {
-    sides: 3, r: 15, hp: 22, speed: 108, dmg: 9, color: '#ff4d8d',
-    xp: 1, score: 20, cost: 1, name: 'Дрейф',
-  },
-  spitter: {
-    sides: 4, r: 16, hp: 30, speed: 82, dmg: 10, color: '#ffb020',
-    xp: 2, score: 35, cost: 2, name: 'Стрелок',
-  },
-  dasher: {
-    sides: 4, r: 15, hp: 26, speed: 78, dmg: 16, color: '#b16bff',
-    xp: 2, score: 42, cost: 2, name: 'Рывок',
-  },
-  splitter: {
-    sides: 6, r: 21, hp: 58, speed: 64, dmg: 12, color: '#3dffa0',
-    xp: 3, score: 55, cost: 3, name: 'Деление',
-  },
-  bulwark: {
-    sides: 5, r: 28, hp: 155, speed: 52, dmg: 20, color: '#ff6b3d',
-    xp: 5, score: 95, cost: 4, name: 'Танк',
-  },
-  shard: {
-    sides: 3, r: 9, hp: 10, speed: 158, dmg: 7, color: '#9dffcf',
-    xp: 1, score: 15, cost: 0, name: 'Осколок',
-  },
-};
-
-// ─── Улучшения ─────────────────────────────────────────────────────────────
-export const RARITY = {
-  common: { label: 'ОБЫЧНОЕ', weight: 58, color: '#7fe7ff' },
-  rare: { label: 'РЕДКОЕ', weight: 30, color: '#b98bff' },
-  epic: { label: 'ЭПИЧЕСКОЕ', weight: 12, color: '#ffcb4d' },
-};
-
-export const UPGRADES = [
+// ─── Данные MOTO RUSH: байки, трафик, эффекты читов ─────────────────────────
+export const BIKES = [
   {
-    id: 'dmg', name: 'ФОКУС ЛУЧА', icon: '✦', rarity: 'common', max: 6,
-    desc: '+22% урона выстрелов',
-    apply: (p) => { p.damage *= 1.22; },
+    id: 'storm',
+    name: 'STORM 250',
+    desc: 'Сбалансированный городской байк. Прощает ошибки, стабилен на скорости.',
+    color: '#5ef1ff',
+    color2: '#1fa7ff',
+    maxSpeed: 1.0,      // множитель макс. скорости
+    accel: 1.0,
+    handling: 1.0,
+    nitroPower: 1.0,
+    grip: 1.0,
   },
   {
-    id: 'rate', name: 'БЫСТРЫЙ ЦИКЛ', icon: '⚡', rarity: 'common', max: 6,
-    desc: '+15% скорострельности',
-    apply: (p) => { p.fireDelay *= 0.85; },
+    id: 'viper',
+    name: 'VIPER 600',
+    desc: 'Спортивный снаряд. Самая высокая максималка, но рулится жёстче.',
+    color: '#ff4d8d',
+    color2: '#ff8a3d',
+    maxSpeed: 1.18,
+    accel: 1.08,
+    handling: 0.88,
+    nitroPower: 1.1,
+    grip: 0.92,
   },
   {
-    id: 'speed', name: 'ЛЁГКИЙ КОРПУС', icon: '➤', rarity: 'common', max: 4,
-    desc: '+9% скорости перемещения',
-    apply: (p) => { p.speed *= 1.09; },
+    id: 'hawk',
+    name: 'NIGHTHAWK 1000',
+    desc: 'Ночной хищник. Взрывной разгон и мощное нитро, широкая посадка.',
+    color: '#b98bff',
+    color2: '#5ef1ff',
+    maxSpeed: 1.1,
+    accel: 1.28,
+    handling: 0.95,
+    nitroPower: 1.45,
+    grip: 1.0,
   },
   {
-    id: 'hp', name: 'РЕЗЕРВ', icon: '❤', rarity: 'common', max: 5,
-    desc: '+25 к максимуму HP, лечит 25',
-    apply: (p) => { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25); },
-  },
-  {
-    id: 'heal', name: 'РЕГЕНЕРАЦИЯ', icon: '✚', rarity: 'rare', max: 3,
-    desc: '+1.5 HP в секунду',
-    apply: (p) => { p.regen += 1.5; },
-  },
-  {
-    id: 'pierce', name: 'ПРОБОЙ', icon: '⤳', rarity: 'rare', max: 3,
-    desc: 'Пули пробивают +1 цель',
-    apply: (p) => { p.pierce += 1; },
-  },
-  {
-    id: 'ricochet', name: 'РИКОШЕТ', icon: '⤡', rarity: 'rare', max: 3,
-    desc: 'Пули отскакивают от стен +1',
-    apply: (p) => { p.ricochet += 1; },
-  },
-  {
-    id: 'crit', name: 'КРИТ. ЯДРО', icon: '◈', rarity: 'rare', max: 4,
-    desc: '+12% шанс крита (x2.5 урона)',
-    apply: (p) => { p.critChance += 0.12; },
-  },
-  {
-    id: 'dash', name: 'ИМПУЛЬС', icon: '»', rarity: 'rare', max: 3,
-    desc: 'Рывок перезаряжается на 25% быстрее',
-    apply: (p) => { p.dashCd *= 0.75; },
-  },
-  {
-    id: 'energy', name: 'БУСТЕР', icon: '⌁', rarity: 'rare', max: 3,
-    desc: '+30% энергии и её регенерации',
-    apply: (p) => { p.maxEnergy *= 1.3; p.energyRegen *= 1.3; p.energy = p.maxEnergy; },
-  },
-  {
-    id: 'magnet', name: 'ГРАВИТАЦИЯ', icon: '◉', rarity: 'common', max: 2,
-    desc: 'Радиус сбора осколков x1.8',
-    apply: (p) => { p.magnetR *= 1.8; },
-  },
-  {
-    id: 'slow', name: 'КРИО-ПОПАДАНИЕ', icon: '❄', rarity: 'rare', max: 2,
-    desc: 'Попадания замедляют врагов',
-    apply: (p) => { p.slowOnHit += 1; },
-  },
-  {
-    id: 'multishot', name: 'РАССЕИВАНИЕ', icon: '⋔', rarity: 'epic', max: 3,
-    desc: '+1 пуля за выстрел',
-    apply: (p) => { p.shots += 1; p.spread = Math.max(p.spread, 0.14); },
-  },
-  {
-    id: 'blade', name: 'ОРБИТАЛЬНЫЙ КЛИНОК', icon: '✧', rarity: 'epic', max: 3,
-    desc: '+1 клинок кружит вокруг тебя',
-    apply: (p) => { p.blades += 1; },
-  },
-  {
-    id: 'explosive', name: 'ДЕТОНАТОР', icon: '☄', rarity: 'epic', max: 2,
-    desc: 'Пули взрываются при попадании',
-    apply: (p) => { p.explosive += 1; },
-  },
-  {
-    id: 'lifesteal', name: 'ВАМПИРИЗМ', icon: '♨', rarity: 'epic', max: 2,
-    desc: '2% нанесённого урона возвращается в HP',
-    apply: (p) => { p.lifesteal += 0.02; },
-  },
-  {
-    id: 'shield', name: 'ЩИТ-ФАНТОМ', icon: '⬡', rarity: 'epic', max: 2,
-    desc: 'Поглощает удар, восстанавливается за 9с',
-    apply: (p) => { p.shieldMax += 1; p.shield = p.shieldMax; },
-  },
-  {
-    id: 'overdrive', name: 'СВЕРХПРОВОДНИК', icon: '◎', rarity: 'rare', max: 2,
-    desc: 'Овердрайв заряжается на 35% быстрее',
-    apply: (p) => { p.odMul += 0.35; },
+    id: 'cruiser',
+    name: 'CRUISER X',
+    desc: 'Тяжёлый круизёр. Идеальная управляемость и сцепление, медленный разгон.',
+    color: '#ffd24a',
+    color2: '#ff6b3d',
+    maxSpeed: 0.92,
+    accel: 0.85,
+    handling: 1.22,
+    nitroPower: 0.9,
+    grip: 1.3,
   },
 ];
 
-export const getUpgradeById = (id) => UPGRADES.find((u) => u.id === id);
+export const TRAFFIC_TYPES = {
+  car:     { w: 0.62, speedMul: 0.38, color: '#ff5a5a', color2: '#8a1f2d', score: 50,  name: 'Седан' },
+  taxi:    { w: 0.62, speedMul: 0.42, color: '#ffd24a', color2: '#8a6a10', score: 60,  name: 'Такси' },
+  van:     { w: 0.78, speedMul: 0.34, color: '#5ef1ff', color2: '#1a4a6a', score: 80,  name: 'Фургон' },
+  truck:   { w: 0.92, speedMul: 0.28, color: '#3dffa0', color2: '#14532d', score: 120, name: 'Грузовик' },
+  bike:    { w: 0.34, speedMul: 0.55, color: '#ff8a3d', color2: '#7a3a10', score: 90,  name: 'Мопед' },
+  police:  { w: 0.62, speedMul: 0.5,  color: '#e8fbff', color2: '#1a3a8a', score: 150, name: 'Полиция' },
+};
+export const TRAFFIC_KEYS = Object.keys(TRAFFIC_TYPES);
+
+// ─── Каталог эффектов читов (для конструктора) ──────────────────────────────
+// value — число, duration — секунды (0 = мгновенно / навсегда до конца заезда)
+export const CHEAT_EFFECTS = [
+  { id: 'coins',        name: 'Монеты',              icon: '◉', desc: 'Мгновенно +N монет',                 valueLabel: 'Монеты',      defValue: 1000, min: 10,   max: 99999, step: 10,  timed: false },
+  { id: 'score',        name: 'Очки',                icon: '★', desc: 'Мгновенно +N очков',                 valueLabel: 'Очки',        defValue: 5000, min: 100,  max: 999999, step: 100, timed: false },
+  { id: 'nitro_time',   name: 'Бесконечное нитро',   icon: '⚡', desc: 'Нитро без расхода N секунд',         valueLabel: 'Секунд',      defValue: 10,   min: 1,    max: 120,    step: 1,   timed: true },
+  { id: 'god_time',     name: 'Неуязвимость',        icon: '🛡', desc: 'Нельзя разбить N секунд',            valueLabel: 'Секунд',      defValue: 10,   min: 1,    max: 120,    step: 1,   timed: true },
+  { id: 'ghost_time',   name: 'Призрак',             icon: '◌', desc: 'Сквозь трафик N секунд',             valueLabel: 'Секунд',      defValue: 8,    min: 1,    max: 120,    step: 1,   timed: true },
+  { id: 'speed_mul',    name: 'Буст скорости',        icon: '➤', desc: 'Макс. скорость ×N на M секунд',     valueLabel: 'Множитель',   defValue: 1.5,  min: 1.05, max: 3,      step: 0.05, timed: true },
+  { id: 'traffic_slow', name: 'Замедлить трафик',    icon: '❄', desc: 'Трафик едет ×N медленнее M секунд',  valueLabel: 'Множитель',   defValue: 0.5,  min: 0.05, max: 0.95, step: 0.05, timed: true },
+  { id: 'traffic_clear',name: 'Чистая дорога',       icon: '✦', desc: 'Убрать весь трафик с трассы',        valueLabel: '—',           defValue: 0,    min: 0,    max: 0,      step: 1,   timed: false },
+  { id: 'repair',       name: 'Ремонт',               icon: '✚', desc: 'Восстановить N HP',                valueLabel: 'HP',          defValue: 50,   min: 5,    max: 100,   step: 5,   timed: false },
+  { id: 'wheelie',      name: 'Вилла (wheelie)',     icon: '▲', desc: 'Встать на заднее колесо, +N очков', valueLabel: 'Очки',        defValue: 1000, min: 100, max: 99999, step: 100, timed: false },
+  { id: 'density',      name: 'Плотность трафика',   icon: '▦', desc: 'Трафика ×N на M секунд',             valueLabel: 'Множитель',   defValue: 0.3,  min: 0,    max: 3,      step: 0.1, timed: true },
+  { id: 'theme',        name: 'Сменить тему',        icon: '☀', desc: 'День → закат → ночь (цикл)',       valueLabel: '—',           defValue: 0,    min: 0,    max: 0,      step: 1,   timed: false },
+];
+
+export const getEffect = (id) => CHEAT_EFFECTS.find((e) => e.id === id);
+
+// ─── Встроенные коды ─────────────────────────────────────────────────────────
+export const BUILTIN_CHEATS = [
+  { code: 'TURBO',      name: 'Турбо-нитpо',   effect: 'nitro_time',   value: 10,   duration: 10,  builtin: true, hint: '10 сек бесконечного нитро' },
+  { code: 'GODMODE',    name: 'Божественный',  effect: 'god_time',     value: 10,   duration: 10,  builtin: true, hint: '10 сек неуязвимости' },
+  { code: 'GHOST',      name: 'Призрак',       effect: 'ghost_time',   value: 8,    duration: 8,   builtin: true, hint: '8 сек сквозь трафик' },
+  { code: 'RICH',       name: 'Богач',         effect: 'coins',        value: 5000, duration: 0,   builtin: true, hint: '+5000 монет' },
+  { code: 'FAST',       name: 'Форсаж',        effect: 'speed_mul',    value: 1.5,  duration: 15,  builtin: true, hint: 'Скорость ×1.5 на 15 сек' },
+  { code: 'SLOWMO',     name: 'Замедление',    effect: 'traffic_slow', value: 0.4,  duration: 10,  builtin: true, hint: 'Трафик ×0.4 на 10 сек' },
+  { code: 'CLEARROAD',  name: 'Чистая дорога', effect: 'traffic_clear',value: 0,    duration: 0,   builtin: true, hint: 'Убрать весь трафик' },
+  { code: 'WHEELIE',    name: 'Вилла!',        effect: 'wheelie',      value: 1500, duration: 0,   builtin: true, hint: '+1500 очков за виллу' },
+  { code: 'REPAIR',     name: 'Ремонт',         effect: 'repair',       value: 50,   duration: 0,   builtin: true, hint: '+50 HP' },
+  { code: 'NIGHT',      name: 'Ночной режим',  effect: 'theme',        value: 0,    duration: 0,   builtin: true, hint: 'Сменить время суток' },
+];

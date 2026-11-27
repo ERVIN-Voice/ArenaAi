@@ -1,9 +1,9 @@
 {
-  "name": "neon-void",
+  "name": "moto-rush",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "NEON VOID — неоновый аркадный twin-stick шутер на чистом Canvas 2D",
+  "description": "MOTO RUSH — аркадные мотогонки 2D/3D на Canvas с чит-кодами, которые можно добавлять самому",
   "scripts": {
     "start": "python3 -m http.server 8080 --bind 0.0.0.0",
     "test": "node tests/smoke.mjs",

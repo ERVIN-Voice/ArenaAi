@@ -3,86 +3,186 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<meta name="theme-color" content="#04050c" />
-<title>NEON VOID — неоновый аркадный шутер</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2304050c'/%3E%3Cpath d='M32 10 52 50 32 40 12 50z' fill='none' stroke='%235ef1ff' stroke-width='3'/%3E%3C/svg%3E" />
+<meta name="theme-color" content="#0b0d18" />
+<title>MOTO RUSH — мотогонки 2D / 3D с чит-кодами</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%230b0d18'/%3E%3Ccircle cx='20' cy='44' r='10' fill='none' stroke='%235ef1ff' stroke-width='4'/%3E%3Ccircle cx='46' cy='44' r='10' fill='none' stroke='%23ff4d8d' stroke-width='4'/%3E%3Cpath d='M20 44 32 22 46 44' fill='none' stroke='%23ffd24a' stroke-width='4'/%3E%3C/svg%3E" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<div id="app">
-  <canvas id="game"></canvas>
-
-  <div id="hud">
-    <div class="hud-left">
-      <div class="stat">
-        <div class="stat-head"><span>ЦЕЛОСТНОСТЬ</span><b id="hpText">100</b></div>
-        <div class="bar"><i id="hpFill" class="fill-hp"></i></div>
-      </div>
-      <div class="stat">
-        <div class="stat-head"><span>ЭНЕРГИЯ <em class="key">SHIFT</em></span><b id="energyText">100%</b></div>
-        <div class="bar"><i id="energyFill" class="fill-energy"></i></div>
-      </div>
-      <div class="stat" id="odStat">
-        <div class="stat-head"><span>ОВЕРДРАЙВ <em class="key">Q</em></span><b id="odText">0%</b></div>
-        <div class="bar bar-od"><i id="odFill" class="fill-od"></i></div>
+<div id="page">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-badge">🏍</div>
+      <div>
+        <div class="brand-name">MOTO <span>RUSH</span></div>
+        <div class="brand-sub">мотогонки · 2D / 3D · чит-коды</div>
       </div>
     </div>
-
-    <div class="hud-right">
-      <div class="score" id="score">0</div>
-      <div class="hud-sub">
-        <span id="waveLabel">ВОЛНА 0</span>
-        <span class="dot">·</span>
-        <span id="lvlLabel">УР. 1</span>
+    <nav class="topnav">
+      <a href="#gameWrap" class="active">Игра</a>
+      <a href="#garage">Гараж</a>
+      <a href="#cheats">Читы</a>
+      <a href="#howto">Как играть</a>
+    </nav>
+    <div class="top-actions">
+      <div class="mode-switch" role="group" aria-label="Режим игры">
+        <button id="mode2d" class="mode-btn" data-mode="2d">2D</button>
+        <button id="mode3d" class="mode-btn active" data-mode="3d">3D</button>
       </div>
-      <div class="xp-bar"><i id="xpFill"></i></div>
-      <div class="mini-btns">
-        <button id="muteBtn" class="mini" title="Звук (M)" aria-label="Звук">♪</button>
-        <button id="pauseBtn" class="mini" title="Пауза (ESC)" aria-label="Пауза">❚❚</button>
+      <button id="cheatBtnTop" class="icon-btn" title="Чит-консоль (C)">⌨</button>
+      <button id="muteBtn" class="icon-btn" title="Звук (M)">♪</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ── ИГРОВАЯ ЗОНА ── -->
+    <section id="gameWrap" class="game-wrap">
+      <div id="app">
+        <canvas id="game"></canvas>
+
+        <div id="hud">
+          <div class="hud-left">
+            <div class="stat">
+              <div class="stat-head"><span>ПРОЧНОСТЬ</span><b id="hpText">100</b></div>
+              <div class="bar"><i id="hpFill" class="fill-hp"></i></div>
+            </div>
+            <div class="stat">
+              <div class="stat-head"><span>НИТРО <em class="key">SHIFT</em></span><b id="nitroText">100%</b></div>
+              <div class="bar bar-nitro"><i id="nitroFill" class="fill-nitro"></i></div>
+            </div>
+            <div class="stat stat-meta">
+              <div class="meta-row"><span id="bikeLabel">STORM 250</span><span id="modeLabel">3D</span></div>
+              <div class="meta-row small"><span id="distLabel">0 м</span><span id="nearLabel">обгонов: 0</span></div>
+            </div>
+          </div>
+
+          <div class="hud-right">
+            <div class="speed"><span id="speedVal">0</span><small>км/ч</small></div>
+            <div class="score" id="score">0</div>
+            <div class="hud-sub"><span id="coinsLabel">◉ 0</span><span class="dot">·</span><span id="topLabel">топ 0 км/ч</span></div>
+            <div class="mini-btns">
+              <button id="pauseBtn" class="mini" title="Пауза (ESC)">❚❚</button>
+              <button id="cheatBtn" class="mini" title="Чит-консоль (C)">⌨</button>
+            </div>
+          </div>
+
+          <div id="activeCheats" class="active-cheats"></div>
+
+          <div class="hints" id="hints">
+            <span><b>WASD</b> руль / газ</span>
+            <span><b>SHIFT</b> нитро</span>
+            <span><b>R</b> вилла</span>
+            <span><b>V</b> 2D/3D</span>
+            <span><b>C</b> читы</span>
+            <span><b>ESC</b> пауза</span>
+          </div>
+        </div>
+
+        <div id="banner"><div class="banner-title"></div><div class="banner-sub"></div></div>
+        <div id="toast" class="toast"></div>
+        <div id="overlay" class="overlay"></div>
+
+        <div id="cheatConsole" class="cheat-console">
+          <div class="cc-head">
+            <span>⌨ ЧИТ-КОНСОЛЬ</span>
+            <span class="cc-hint">Enter — применить · Esc — закрыть</span>
+          </div>
+          <div class="cc-row">
+            <input id="cheatInput" type="text" placeholder="Введи код, например TURBO…" autocomplete="off" spellcheck="false" />
+            <button id="cheatApply" class="btn small">ВВЕСТИ</button>
+            <button id="cheatClose" class="btn ghost small">✕</button>
+          </div>
+          <div id="cheatHistory" class="cc-history"></div>
+        </div>
+
+        <div class="fx-overlay vignette"></div>
+        <div class="fx-overlay flash" id="flash"></div>
+
+        <div id="touchPad">
+          <div class="tp-left">
+            <button class="tbtn" data-v="left">◀</button>
+            <button class="tbtn" data-v="right">▶</button>
+          </div>
+          <div class="tp-right">
+            <button class="tbtn" data-v="brake">ТОРМОЗ</button>
+            <button class="tbtn nitro" data-v="nitro">НИТРО</button>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="combo" id="combo"><span id="comboVal">x1.0</span><small>КОМБО</small></div>
+    <!-- ── БОКОВАЯ ПАНЕЛЬ ── -->
+    <aside class="sidebar">
+      <section id="garage" class="panel">
+        <h2>🏍 Гараж <span class="panel-sub">выбери байк</span></h2>
+        <div id="bikeList" class="bike-list"></div>
+      </section>
 
-    <div class="boss-bar" id="bossWrap">
-      <div class="boss-title">ЯДРО ПУСТОТЫ <span id="bossPhase">ФАЗА I</span></div>
-      <div class="bar bar-boss"><i id="bossFill" class="fill-boss"></i></div>
-    </div>
+      <section id="cheats" class="panel">
+        <h2>⌨ Чит-коды <span class="panel-sub">свои можно добавить ↓</span></h2>
+        <p class="panel-text">Введи код в консоли (<b>C</b>) или нажми «Активировать». Свои коды сохраняются в браузере.</p>
 
-    <div class="hints" id="hints">
-      <span><b>WASD</b> движение</span>
-      <span><b>МЫШЬ</b> прицел</span>
-      <span><b>SHIFT</b> замедление</span>
-      <span><b>ПРОБЕЛ</b> рывок</span>
-      <span><b>Q</b> овердрайв</span>
-      <span><b>ESC</b> пауза</span>
-    </div>
-  </div>
+        <form id="cheatForm" class="cheat-form">
+          <div class="form-title">＋ Добавить свой код</div>
+          <label>Код (A–Z, 0–9)
+            <input id="cfCode" type="text" placeholder="MYCODE" maxlength="16" autocomplete="off" />
+          </label>
+          <label>Название
+            <input id="cfName" type="text" placeholder="Мой супер-чит" maxlength="40" />
+          </label>
+          <label>Эффект
+            <select id="cfEffect"></select>
+          </label>
+          <div class="form-grid">
+            <label>Значение <span id="cfValueLabel" class="val-label"></span>
+              <input id="cfValue" type="number" step="any" />
+            </label>
+            <label>Длит. (сек)
+              <input id="cfDuration" type="number" min="0" max="300" step="1" value="10" />
+            </label>
+          </div>
+          <div id="cfError" class="form-error"></div>
+          <button type="submit" class="btn">СОХРАНИТЬ КОД</button>
+        </form>
 
-  <div id="banner">
-    <div class="banner-title"></div>
-    <div class="banner-sub"></div>
-  </div>
+        <div class="cheat-group">Встроенные</div>
+        <div id="builtinList" class="cheat-list"></div>
+        <div class="cheat-group">Мои коды <span id="customCount" class="count"></span></div>
+        <div id="customList" class="cheat-list"></div>
+        <div id="customEmpty" class="empty">Пока нет своих кодов — добавь первый выше 👆</div>
 
-  <div id="upgrades" class="upgrades">
-    <div class="up-head">
-      <div class="up-kicker">СИСТЕМА РАЗВИТИЯ</div>
-      <h2 class="up-title">ВЫБЕРИ УЛУЧШЕНИЕ</h2>
-      <div class="up-sub">Уровень повышен — щёлкни карту или нажми 1 / 2 / 3</div>
-    </div>
-    <div class="cards" id="cards"></div>
-  </div>
+        <div class="cheat-group">Активные сейчас</div>
+        <div id="activeList" class="active-list"><span class="empty">—</span></div>
+      </section>
 
-  <div id="overlay" class="overlay"></div>
+      <section id="howto" class="panel">
+        <h2>🎮 Как играть</h2>
+        <table class="keys">
+          <tr><td><kbd>W</kbd>/<kbd>↑</kbd></td><td>Газ</td></tr>
+          <tr><td><kbd>S</kbd>/<kbd>↓</kbd></td><td>Тормоз</td></tr>
+          <tr><td><kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd></td><td>Руль</td></tr>
+          <tr><td><kbd>SHIFT</kbd> / <kbd>ПРОБЕЛ</kbd></td><td>Нитро</td></tr>
+          <tr><td><kbd>R</kbd></td><td>Вилла (на скорости)</td></tr>
+          <tr><td><kbd>V</kbd></td><td>Переключить 2D / 3D</td></tr>
+          <tr><td><kbd>C</kbd> / <kbd>`</kbd></td><td>Чит-консоль</td></tr>
+          <tr><td><kbd>ESC</kbd> / <kbd>P</kbd></td><td>Пауза</td></tr>
+          <tr><td><kbd>M</kbd></td><td>Звук</td></tr>
+        </table>
+        <p class="panel-text">Обгоняй трафик вплотную — за «почти столкновение» дают бонусы. Собирай монеты ◉. Не врезайся: 3 аварии — и заезд окончен. В 2D-режиме вид сверху, в 3D — псевдо-3D трасса.</p>
+      </section>
 
-  <div class="fx-overlay scanlines"></div>
-  <div class="fx-overlay vignette"></div>
-  <div class="fx-overlay flash" id="flash"></div>
+      <section class="panel">
+        <h2>🏆 Рекорды</h2>
+        <div class="records">
+          <div><span>Лучший счёт</span><b id="recScore">0</b></div>
+          <div><span>Дистанция</span><b id="recDist">0 м</b></div>
+          <div><span>Монеты всего</span><b id="recCoins">0</b></div>
+        </div>
+      </section>
+    </aside>
+  </main>
 
-  <div id="touchPad">
-    <button class="tbtn" data-code="Space">РЫВОК</button>
-    <button class="tbtn" data-code="KeyQ">Q</button>
-  </div>
+  <footer class="footer">MOTO RUSH · чистый Canvas, без картинок и файлов — всё рисуется и синтезируется в браузере</footer>
 </div>
 
 <script type="module" src="src/main.js"></script>
